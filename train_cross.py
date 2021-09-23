@@ -132,7 +132,7 @@ def mixup_data(x, y, x_help, use_cuda=True):
     mixed_x = vec_mul_ten(lams[:, 0], x)
     
     if args.mode == 'dp-mixup':
-        noise = noise_sampler.sample(mixed_x.shape)
+        noise = noise_sampler.sample(mixed_x.shape).to(device)
         mixed_x += noise
     
     ys = [y]
@@ -153,7 +153,7 @@ def mixup_data(x, y, x_help, use_cuda=True):
             image = vec_mul_ten(lams[:, i], x_help[index, :])
         mixed_x += image
         if args.mode == 'dp-mixup':
-            noise = noise_sampler.sample(mixed_x.shape)
+            noise = noise_sampler.sample(mixed_x.shape).to(device)
             mixed_x += noise
         
         ys.append(y[index])         # Only keep the labels for private samples
@@ -162,7 +162,7 @@ def mixup_data(x, y, x_help, use_cuda=True):
         sign = torch.randint(2, size=list(x.shape), device=device) * 2.0 - 1
         mixed_x *= sign.float().to(device)
     elif args.mode == "mixup-dp":
-        noise = noise_sampler.sample(mixed_x.shape)
+        noise = noise_sampler.sample(mixed_x.shape).to(device)
         mixed_x += noise
     
     return mixed_x, ys, lams

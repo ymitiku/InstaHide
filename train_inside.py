@@ -126,7 +126,7 @@ def mixup_data(x, y, use_cuda=True):
     mixed_x = vec_mul_ten(lams[:, 0], x)
     
     if args.mode == 'dp-mixup':
-        noise = noise_sampler.sample(mixed_x.shape)
+        noise = noise_sampler.sample(mixed_x.shape).to(device)
         mixed_x += noise
 
     ys = [y]
@@ -136,7 +136,7 @@ def mixup_data(x, y, use_cuda=True):
         index = torch.randperm(batch_size).to(device)
         mixed_x += vec_mul_ten(lams[:, i], x[index, :])
         if args.mode == 'dp-mixup':
-            noise = noise_sampler.sample(mixed_x.shape)
+            noise = noise_sampler.sample(mixed_x.shape).to(device)
             mixed_x += noise
             
 
@@ -146,7 +146,7 @@ def mixup_data(x, y, use_cuda=True):
         sign = torch.randint(2, size=list(x.shape), device=device) * 2.0 - 1
         mixed_x *= sign.float().to(device)
     elif args.mode == "mixup-dp":
-        noise = noise_sampler.sample(mixed_x.shape)
+        noise = noise_sampler.sample(mixed_x.shape).to(device)
         mixed_x += noise
 
     return mixed_x, ys, lams
