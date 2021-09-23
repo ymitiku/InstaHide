@@ -12,6 +12,15 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 import matplotlib.pyplot as plt
+from enum import Enum
+
+
+class Mode(Enum):
+    INSTAHIDE = 1
+    MIXUP = 2
+    INSTAHIDE_DP = 3
+    MIXUP_DP = 4
+    DP_MIXUP = 5
 
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
