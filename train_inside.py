@@ -61,6 +61,7 @@ parser.add_argument('--klam', default=4, type=int, help='number of lambdas')
 parser.add_argument('--mode', default='instahide',
                     type=str, help='InsatHide or Mixup')
 parser.add_argument('--upper', default=0.65, type=float, help='the upper bound of any coefficient')
+parser.add_argument("--dp-epsilon", type=float, default=5.0, help="The differential privacy noise, inverse scale parameter")
 
 
 args = parser.parse_args()
@@ -69,6 +70,10 @@ device = torch.device("cuda" if use_cuda else "cpu")
 
 criterion = nn.CrossEntropyLoss()
 best_acc = 0  # best test accuracy
+
+if "dp" in args.mode:
+    noise_sampler = torch.distributions.laplace.Laplace(loc=[0.0], scale=[1/args.dp_epsilon])
+
 
 ## --------------- Functions for train & eval --------------- ##
 
@@ -119,17 +124,31 @@ def mixup_data(x, y, use_cuda=True):
     lams = torch.from_numpy(lams).float().to(device)
 
     mixed_x = vec_mul_ten(lams[:, 0], x)
+    
+    if args.mode == 'dp-mixup':
+        noise = noise_sampler.sample(mixed_x.shape)
+        mixed_x += noise
+
     ys = [y]
 
     for i in range(1, args.klam):
         batch_size = x.size()[0]
         index = torch.randperm(batch_size).to(device)
         mixed_x += vec_mul_ten(lams[:, i], x[index, :])
+        if args.mode == 'dp-mixup':
+            noise = noise_sampler.sample(mixed_x.shape)
+            mixed_x += noise
+            
+
         ys.append(y[index])
 
     if args.mode == 'instahide':
         sign = torch.randint(2, size=list(x.shape), device=device) * 2.0 - 1
         mixed_x *= sign.float().to(device)
+    elif args.mode == "mixup-dp":
+        noise = noise_sampler.sample(mixed_x.shape)
+        mixed_x += noise
+
     return mixed_x, ys, lams
 
 

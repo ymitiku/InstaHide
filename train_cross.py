@@ -66,13 +66,15 @@ parser.add_argument('--pair', action='store_true')
 parser.add_argument('--upper', default=0.65, type=float, help='the upper bound of any coefficient')
 parser.add_argument('--dom', default=0.3, type=float, help='the lower bound of the sum of coefficients of two private images')
 
-
+parser.add_argument("--dp-epsilon", type=float, default=5.0, help="The differential privacy noise, inverse scale parameter")
 args = parser.parse_args()
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 
 criterion = nn.CrossEntropyLoss()
 best_acc = 0  # best test accuracy
+if "dp" in args.mode:
+    noise_sampler = torch.distributions.laplace.Laplace(loc=[0.0], scale=[1/args.dp_epsilon])
 
 ## --------------- Functions for train & eval --------------- ##
 
@@ -128,6 +130,11 @@ def mixup_data(x, y, x_help, use_cuda=True):
     lams = torch.from_numpy(lams).float().to(device)
 
     mixed_x = vec_mul_ten(lams[:, 0], x)
+    
+    if args.mode == 'dp-mixup':
+        noise = noise_sampler.sample(mixed_x.shape)
+        mixed_x += noise
+    
     ys = [y]
 
     if args.pair:
@@ -140,15 +147,24 @@ def mixup_data(x, y, x_help, use_cuda=True):
         index = torch.randperm(batch_size).to(device)
         if i < inside_cnt:
             # mix private samples
-            mixed_x += vec_mul_ten(lams[:, i], x[index, :])
+            image = vec_mul_ten(lams[:, i], x[index, :])
         else:
             # mix public samples
-            mixed_x += vec_mul_ten(lams[:, i], x_help[index, :])
+            image = vec_mul_ten(lams[:, i], x_help[index, :])
+        mixed_x += image
+        if args.mode == 'dp-mixup':
+            noise = noise_sampler.sample(mixed_x.shape)
+            mixed_x += noise
+        
         ys.append(y[index])         # Only keep the labels for private samples
 
     if args.mode == 'instahide':
         sign = torch.randint(2, size=list(x.shape), device=device) * 2.0 - 1
         mixed_x *= sign.float().to(device)
+    elif args.mode == "mixup-dp":
+        noise = noise_sampler.sample(mixed_x.shape)
+        mixed_x += noise
+    
     return mixed_x, ys, lams
 
 
