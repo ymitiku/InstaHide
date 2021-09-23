@@ -17,9 +17,8 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torch.nn.functional as F
 import random
-
 import models
-from utils import progress_bar, chunks, save_fig
+from utils import progress_bar, chunks, save_fig, Mode   
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -71,8 +70,26 @@ device = torch.device("cuda" if use_cuda else "cpu")
 criterion = nn.CrossEntropyLoss()
 best_acc = 0  # best test accuracy
 
-if "dp" in args.mode:
-    noise_sampler = torch.distributions.laplace.Laplace(loc=[0.0], scale=[1/args.dp_epsilon])
+modes = ["insthide", "mixup", "instahide-dp", "mixup-dp", "dp-mixup"]
+str_mode2enum = {
+                "instahide":Mode.INSTAHIDE,
+                 "mixup":Mode.MIXUP, 
+                 "instahide-dp":Mode.INSTAHIDE_DP,
+                 "mixup-dp":Mode.MIXUP_DP,
+                 "dp-mixup":Mode.DP_MIXUP
+                 }
+args.mode = str_mode2enum[args.mode]
+mode_enums = set(str_mode2enum.values())
+mode_strs = set(modes)
+
+dp_modes = {Mode.INSTAHIDE_DP, Mode.MIXUP_DP, Mode.DP_MIXUP}
+
+assert args.mode in mode_enums
+
+
+
+if args.mode in dp_modes:
+    noise_sampler = torch.distributions.laplace.Laplace(loc=0.0, scale=1/args.dp_epsilon)
 
 
 ## --------------- Functions for train & eval --------------- ##
@@ -125,7 +142,7 @@ def mixup_data(x, y, use_cuda=True):
 
     mixed_x = vec_mul_ten(lams[:, 0], x)
     
-    if args.mode == 'dp-mixup':
+    if args.mode == Mode.DP_MIXUP:
         noise = noise_sampler.sample(mixed_x.shape).to(device)
         mixed_x += noise
 
@@ -135,17 +152,19 @@ def mixup_data(x, y, use_cuda=True):
         batch_size = x.size()[0]
         index = torch.randperm(batch_size).to(device)
         mixed_x += vec_mul_ten(lams[:, i], x[index, :])
-        if args.mode == 'dp-mixup':
+        if args.mode == Mode.DP_MIXUP:
             noise = noise_sampler.sample(mixed_x.shape).to(device)
             mixed_x += noise
             
 
         ys.append(y[index])
 
-    if args.mode == 'instahide':
+    if args.mode == Mode.INSTAHIDE or Mode.INSTAHIDE_DP:
         sign = torch.randint(2, size=list(x.shape), device=device) * 2.0 - 1
         mixed_x *= sign.float().to(device)
-    elif args.mode == "mixup-dp":
+    
+    
+    if args.mode == Mode.INSTAHIDE_DP or args.mode == Mode.MIXUP_DP:
         noise = noise_sampler.sample(mixed_x.shape).to(device)
         mixed_x += noise
 
@@ -173,7 +192,7 @@ def train(net, optimizer, inputs_all, mix_targets_all, lams, epoch):
     for batch_idx in range(len(bl)):
         b = bl[batch_idx]
         inputs = torch.stack([inputs_all[i] for i in b])
-        if args.mode == 'instahide' or args.mode == 'mixup':
+        if args.mode in  mode_enums:
             lam_batch = torch.stack([lams[i] for i in b])
 
         mix_targets = []
