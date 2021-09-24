@@ -178,7 +178,7 @@ def mixup_data(x, y, x_help, use_cuda=True):
         
         ys.append(y[index])         # Only keep the labels for private samples
 
-    if args.mode == Mode.INSTAHIDE or Mode.INSTAHIDE_DP:
+    if args.mode == Mode.INSTAHIDE or args.mode ==  Mode.INSTAHIDE_DP:
         sign = torch.randint(2, size=list(x.shape), device=device) * 2.0 - 1
         mixed_x *= sign.float().to(device)
     
